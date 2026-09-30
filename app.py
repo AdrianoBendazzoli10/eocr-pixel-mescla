@@ -1,9 +1,13 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 import os
 import uuid
 import math
+import io
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 from pixels.analyzer import analyze_continuity
 from pixels.preprocessing import preprocess_image
@@ -623,6 +627,73 @@ def analisar_documento(caminho):
 # =========================================================
 # EXECUÇÃO DO FLASK
 # =========================================================
+
+
+# =========================================================
+# ROTA PARA GERAR RELATÓRIO PDF
+# =========================================================
+
+@app.route("/gerar_pdf", methods=["POST"])
+def gerar_pdf():
+    try:
+        dados = request.get_json(silent=True) or {}
+        if not dados:
+            return jsonify({"erro": "Nenhum resultado foi enviado para o relatório."}), 400
+
+        nome_arquivo = str(dados.get("nome_arquivo") or "documento_analisado")
+        analise_global = dados.get("analise_global") or {}
+        anomalias = dados.get("lista_anomalias") or []
+
+        buffer = io.BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        largura, altura = A4
+        y = altura - 50
+
+        def linha(texto, tamanho=10, negrito=False):
+            nonlocal y
+            if y < 60:
+                pdf.showPage()
+                y = altura - 50
+            pdf.setFont("Helvetica-Bold" if negrito else "Helvetica", tamanho)
+            pdf.drawString(50, y, str(texto)[:110])
+            y -= 18
+
+        linha("VALID - Relatório de Análise Documental", 16, True)
+        linha(f"Arquivo: {nome_arquivo}")
+        linha("")
+        linha("Resumo da análise", 12, True)
+        linha(f"Classificação: {analise_global.get('classification', 'Não identificada')}")
+        linha(f"Score combinado: {analise_global.get('combined_score', 'N/D')}")
+        linha(f"Score de pixels: {analise_global.get('pixel_score', 'N/D')}")
+        linha(f"Score de geometria: {analise_global.get('geometry_score', 'N/D')}")
+        linha(f"Continuidade: {analise_global.get('continuity_score', 'N/D')}")
+        linha(f"Regiões suspeitas: {analise_global.get('suspicious_geometry_regions', 'N/D')}")
+        linha("")
+        linha("Anomalias detectadas", 12, True)
+
+        if not anomalias:
+            linha("Nenhuma anomalia regional foi registrada.")
+        else:
+            for i, item in enumerate(anomalias, 1):
+                linha(f"{i}. {item.get('nivel_classificacao', 'Suspeita')} - {item.get('texto_identificado', '')}", 10, True)
+                linha(f"   Pontuação: {item.get('pontuacao_suspeita', 'N/D')}")
+                linha(f"   Desvio ELA: {item.get('desvio_maximo_ela', 'N/D')}")
+                linha(f"   Contraste de borda: {item.get('edge_contrast', 'N/D')}")
+
+        pdf.save()
+        buffer.seek(0)
+
+        nome_download = "VALID_Relatorio_" + os.path.splitext(os.path.basename(nome_arquivo))[0] + ".pdf"
+        return send_file(
+            buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=nome_download
+        )
+
+    except Exception as erro:
+        return jsonify({"erro": f"Erro ao gerar relatório: {erro}"}), 500
+
 
 if __name__ == "__main__":
 
