@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 import os
 import uuid
@@ -623,6 +625,274 @@ def analisar_documento(caminho):
 # =========================================================
 # EXECUÇÃO DO FLASK
 # =========================================================
+
+
+
+# =========================================================
+# ROTA PARA GERAR RELATÓRIO PDF
+# =========================================================
+
+@app.route("/gerar_pdf", methods=["POST"])
+def gerar_pdf():
+    caminho_pdf = None
+
+    try:
+        dados = request.get_json(silent=True)
+
+        if not dados:
+            return jsonify({
+                "erro": "Nenhum dado recebido para gerar o PDF."
+            }), 400
+
+        os.makedirs("temp", exist_ok=True)
+
+        nome_pdf = f"relatorio_{uuid.uuid4()}.pdf"
+        caminho_pdf = os.path.join("temp", nome_pdf)
+
+        pdf = canvas.Canvas(
+            caminho_pdf,
+            pagesize=A4
+        )
+
+        _, altura = A4
+        margem_x = 50
+        y = altura - 50
+
+        pdf.setFont("Helvetica-Bold", 18)
+        pdf.drawString(
+            margem_x,
+            y,
+            "VALID - Relatório de Análise"
+        )
+
+        y -= 35
+
+        nome_arquivo = str(
+            dados.get(
+                "nome_arquivo",
+                "Documento"
+            )
+        )
+
+        pdf.setFont("Helvetica", 11)
+        pdf.drawString(
+            margem_x,
+            y,
+            f"Arquivo: {nome_arquivo}"
+        )
+
+        y -= 30
+
+        analise_global = dados.get(
+            "analise_global",
+            {}
+        ) or {}
+
+        classificacao = str(
+            analise_global.get(
+                "classification",
+                "Não identificado"
+            )
+        )
+
+        score_final = float(
+            analise_global.get(
+                "combined_score",
+                0
+            ) or 0
+        )
+
+        score_pixel = float(
+            analise_global.get(
+                "pixel_score",
+                0
+            ) or 0
+        )
+
+        score_geometria = float(
+            analise_global.get(
+                "geometry_score",
+                0
+            ) or 0
+        )
+
+        continuidade = analise_global.get(
+            "continuity_score",
+            "-"
+        )
+
+        maior_bloco = analise_global.get(
+            "max_block_score",
+            "-"
+        )
+
+        total_regioes = analise_global.get(
+            "total_regions",
+            dados.get(
+                "total_regioes_texto",
+                "-"
+            )
+        )
+
+        regioes_suspeitas = analise_global.get(
+            "suspicious_geometry_regions",
+            "-"
+        )
+
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(
+            margem_x,
+            y,
+            "Resultado da análise"
+        )
+
+        y -= 25
+        pdf.setFont("Helvetica", 11)
+
+        linhas_resultado = [
+            f"Classificação: {classificacao}",
+            f"Score final: {score_final:.2f}%",
+            f"Score de pixels: {score_pixel:.2f}%",
+            f"Score EOCR: {score_geometria:.2f}%",
+            f"Continuidade: {continuidade}",
+            f"Maior bloco suspeito: {maior_bloco}",
+            f"Total de regiões: {total_regioes}",
+            f"Regiões suspeitas: {regioes_suspeitas}",
+        ]
+
+        for linha in linhas_resultado:
+            pdf.drawString(
+                margem_x,
+                y,
+                linha
+            )
+            y -= 18
+
+        y -= 15
+
+        anomalias = dados.get(
+            "lista_anomalias",
+            []
+        ) or []
+
+        if y < 120:
+            pdf.showPage()
+            y = altura - 50
+
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(
+            margem_x,
+            y,
+            "Áreas que merecem atenção"
+        )
+
+        y -= 25
+        pdf.setFont("Helvetica", 10)
+
+        if not anomalias:
+            pdf.drawString(
+                margem_x,
+                y,
+                "Nenhuma região suspeita foi identificada."
+            )
+        else:
+            for index, anomalia in enumerate(
+                anomalias,
+                start=1
+            ):
+                if y < 80:
+                    pdf.showPage()
+                    y = altura - 50
+                    pdf.setFont("Helvetica", 10)
+
+                texto = str(
+                    anomalia.get(
+                        "texto_identificado",
+                        ""
+                    )
+                ).replace("\n", " ")
+
+                nivel = str(
+                    anomalia.get(
+                        "nivel_classificacao",
+                        ""
+                    )
+                )
+
+                score_regiao = anomalia.get(
+                    "pontuacao_suspeita",
+                    0
+                )
+
+                linha = (
+                    f"{index}. {texto[:65]} "
+                    f"- {nivel} "
+                    f"({score_regiao})"
+                )
+
+                pdf.drawString(
+                    margem_x,
+                    y,
+                    linha
+                )
+
+                y -= 18
+
+        y -= 25
+
+        if y < 80:
+            pdf.showPage()
+            y = altura - 50
+
+        pdf.setFont("Helvetica-Oblique", 9)
+        pdf.drawString(
+            margem_x,
+            y,
+            (
+                "Este relatório é uma ferramenta de triagem automática e "
+                "não substitui análise pericial especializada."
+            )
+        )
+
+        pdf.save()
+
+        resposta = send_file(
+            caminho_pdf,
+            as_attachment=True,
+            download_name=(
+                f"VALID_Relatorio_"
+                f"{os.path.splitext(nome_arquivo)[0]}.pdf"
+            ),
+            mimetype="application/pdf"
+        )
+
+        @resposta.call_on_close
+        def remover_pdf_temporario():
+            if caminho_pdf and os.path.exists(caminho_pdf):
+                try:
+                    os.remove(caminho_pdf)
+                except OSError:
+                    pass
+
+        return resposta
+
+    except Exception as erro:
+        print("\n================================")
+        print("ERRO AO GERAR PDF")
+        print("================================")
+        print(f"{type(erro).__name__}: {erro}")
+        print("================================\n")
+
+        if caminho_pdf and os.path.exists(caminho_pdf):
+            try:
+                os.remove(caminho_pdf)
+            except OSError:
+                pass
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
+
 
 if __name__ == "__main__":
 
