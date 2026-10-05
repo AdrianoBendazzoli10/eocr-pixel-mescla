@@ -1,8 +1,38 @@
-import easyocr
+from pathlib import Path
+
 import cv2
+import easyocr
 import numpy as np
 
-reader = easyocr.Reader(['pt', 'en'], gpu=False)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
+
+MODELOS_OBRIGATORIOS = [
+    MODEL_DIR / "craft_mlt_25k.pth",
+    MODEL_DIR / "latin_g2.pth",
+]
+
+faltando = [
+    str(caminho.name)
+    for caminho in MODELOS_OBRIGATORIOS
+    if not caminho.exists()
+]
+
+if faltando:
+    raise RuntimeError(
+        "Modelos do EasyOCR não encontrados: "
+        + ", ".join(faltando)
+        + ". Execute setup.bat na raiz do projeto."
+    )
+
+
+reader = easyocr.Reader(
+    ["pt", "en"],
+    gpu=False,
+    model_storage_directory=str(MODEL_DIR),
+    download_enabled=False
+)
 
 
 def run_eocr(image_path):
@@ -10,10 +40,10 @@ def run_eocr(image_path):
     # lê a imagem e identifica os textos dela
     results = reader.readtext(image_path)
 
-    # cria uma lista para guardar as informações dos textos 
+    # cria uma lista para guardar as informações dos textos
     text_regions = []
 
-    # passa por cada texto 
+    # passa por cada texto
     for (bbox, text, prob) in results:
 
         # transforma os pontos da região do texto em um formato que o opencv entende
@@ -39,5 +69,5 @@ def run_eocr(image_path):
             "angle": float(angle)
         })
 
-    # retorna todas as regiões de texto 
+    # retorna todas as regiões de texto
     return text_regions
