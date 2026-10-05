@@ -18,6 +18,8 @@ class DocumentComparator:
             campos2.get("nome"),
         )
         cpf_status = self._comparar_cpfs(campos1, campos2)
+        cpf_validade1 = campos1.get("cpf_status")
+        cpf_validade2 = campos2.get("cpf_status")
         data_status = self._comparar_datas(
             campos1.get("datas", []),
             campos2.get("datas", []),
@@ -36,7 +38,7 @@ class DocumentComparator:
 
         if quantidade_comparavel < 2:
             status = "SEM DADOS SUFICIENTES"
-        elif cpf_status in {"INVALIDO", "AMBIGUO"}:
+        elif cpf_validade1 in {"invalid", "ambiguous"} or cpf_validade2 in {"invalid", "ambiguous"}:
             status = "REQUER_REVISAO"
         elif compatibilidade is not None and compatibilidade >= 70:
             status = "COMPATIVEL"
@@ -50,6 +52,10 @@ class DocumentComparator:
             "detalhes": {
                 "nome_similaridade": nome_similaridade,
                 "campos_comparaveis": quantidade_comparavel,
+                "cpf_validacao": {
+                    "documento1": cpf_validade1,
+                    "documento2": cpf_validade2,
+                },
                 "valores": {
                     "nome": {
                         "documento1": campos1.get("nome"),
@@ -113,19 +119,15 @@ class DocumentComparator:
         return normalizado or None
 
     def _comparar_cpfs(self, campos1, campos2):
-        status1 = campos1.get("cpf_status")
-        status2 = campos2.get("cpf_status")
-
-        if status1 == "ambiguous" or status2 == "ambiguous":
-            return "AMBIGUO"
-        if status1 == "invalid" or status2 == "invalid":
-            return "INVALIDO"
-
         cpf1 = self._normalizar_cpf(campos1.get("cpf"))
         cpf2 = self._normalizar_cpf(campos2.get("cpf"))
 
+        # Compatibilidade e validade são conceitos diferentes:
+        # dois documentos podem conter exatamente o mesmo CPF mesmo que
+        # esse número não passe na validação matemática do dígito verificador.
         if not cpf1 or not cpf2:
             return "NAO_IDENTIFICADO"
+
         return "COMPATIVEL" if cpf1 == cpf2 else "DIVERGENTE"
 
     @staticmethod
