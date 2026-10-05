@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 import math
 import os
+from numbers import Rational
 import tempfile
 
 from PIL.TiffImagePlugin import IFDRational
@@ -40,10 +41,28 @@ def _json_seguro(valor):
             for item in valor
         ]
 
-    if isinstance(valor, IFDRational):
+    if isinstance(valor, (IFDRational, Rational)):
         try:
-            return float(valor)
-        except (TypeError, ValueError, ZeroDivisionError):
+            numero = float(valor)
+
+            if math.isnan(numero) or math.isinf(numero):
+                return 0.0
+
+            return numero
+
+        except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+            return str(valor)
+
+    if hasattr(valor, "numerator") and hasattr(valor, "denominator"):
+        try:
+            denominador = valor.denominator
+
+            if denominador == 0:
+                return str(valor)
+
+            return float(valor.numerator) / float(denominador)
+
+        except Exception:
             return str(valor)
 
     if isinstance(valor, bytes):
