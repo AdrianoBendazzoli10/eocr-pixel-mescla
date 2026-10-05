@@ -4,3 +4,8 @@ __pycache__/
 .venv/
 venv/
 temp/
+
+# Modelos grandes do EasyOCR são baixados pelo setup.bat
+models/easyocr/*.pth
+models/easyocr/*.zip
+
