@@ -27,7 +27,7 @@ scikit-image==0.26.0
 scipy==1.18.1
 setuptools==84.0.0
 shapely==2.1.2
-sympy==1.14.0
+sympy==1.13.1
 tifffile==2026.8.23
 torch==2.5.1+cpu
 torchvision==0.20.1+cpu
