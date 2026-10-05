@@ -50,6 +50,20 @@ class DocumentComparator:
             "detalhes": {
                 "nome_similaridade": nome_similaridade,
                 "campos_comparaveis": quantidade_comparavel,
+                "valores": {
+                    "nome": {
+                        "documento1": campos1.get("nome"),
+                        "documento2": campos2.get("nome"),
+                    },
+                    "cpf": {
+                        "documento1": campos1.get("cpf"),
+                        "documento2": campos2.get("cpf"),
+                    },
+                    "data": {
+                        "documento1": campos1.get("datas", []),
+                        "documento2": campos2.get("datas", []),
+                    },
+                },
             },
         }
 
