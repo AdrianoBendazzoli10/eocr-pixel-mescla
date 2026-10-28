@@ -1,0 +1,10 @@
+cd C:\caminho\do\projeto
+py -3.12 -m venv venv
+venv\Scripts\activate
+python --version
+python -m pip install --upgrade pip
+python -m pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install numpy==2.2.6 opencv-python-headless==4.11.0.86 easyocr==1.7.2 flask flask-cors pillow pymupdf reportlab==4.4.4
+python -c "import numpy, cv2, torch, torchvision, easyocr, PIL, reportlab, fitz, flask, flask_cors; print('OK')"
+setup.bat
+iniciar.bat
