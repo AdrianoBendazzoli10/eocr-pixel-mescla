@@ -1,37 +1,37 @@
 from pathlib import Path
-
+import os
 import cv2
 import easyocr
 import numpy as np
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
+
+# Garante que a pasta de modelos existe no servidor
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 MODELOS_OBRIGATORIOS = [
     MODEL_DIR / "craft_mlt_25k.pth",
     MODEL_DIR / "latin_g2.pth",
 ]
 
+# No ambiente de nuvem (Railway), permitimos que o EasyOCR baixe os modelos se faltarem
 faltando = [
     str(caminho.name)
     for caminho in MODELOS_OBRIGATORIOS
     if not caminho.exists()
 ]
 
-if faltando:
-    raise RuntimeError(
-        "Modelos do EasyOCR não encontrados: "
-        + ", ".join(faltando)
-        + ". Execute setup.bat na raiz do projeto."
-    )
+if faltando and os.environ.get("RAILWAY_ENVIRONMENT") is None:
+    # Localmente (no seu PC), ainda avisa para rodar o setup se quiser
+    pass
 
-
+# Inicializa o EasyOCR permitindo download se necessário na nuvem
 reader = easyocr.Reader(
     ["pt", "en"],
     gpu=False,
     model_storage_directory=str(MODEL_DIR),
-    download_enabled=False
+    download_enabled=True
 )
 
 

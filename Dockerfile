@@ -1,3 +1,5 @@
+
+=======
 FROM python:3.12-slim
 
 # Instala apenas o Tesseract com idioma português e bibliotecas mínimas do OpenCV
@@ -26,4 +28,5 @@ ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
 # 1 worker para não duplicar o EasyOCR na memória RAM
+>>>>>>> b6b45fa (Permite download automatico dos modelos do EasyOCR no Railway):dockerfile
 CMD gunicorn app:app --bind 0.0.0.0:${PORT} --workers 1 --threads 2 --timeout 180
