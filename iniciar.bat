@@ -24,7 +24,7 @@ if not exist "models\easyocr\latin_g2.pth" (
 )
 
 echo.
-echo Iniciando IA do VALID em http://127.0.0.1:5000
+echo Iniciando IA do VALID 
 echo.
 "venv\Scripts\python.exe" app.py
 
