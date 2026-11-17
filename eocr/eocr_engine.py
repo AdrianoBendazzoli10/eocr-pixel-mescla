@@ -5,6 +5,8 @@ import cv2
 import easyocr
 import numpy as np
 import torch
+
+# Evita que o PyTorch abra várias threads (menos memória)
 torch.set_num_threads(1)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -15,9 +17,6 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Maior lado da imagem enviada ao EasyOCR (reduz muito o uso de memória)
 MAX_LADO_OCR = 1280
-
-# dentro de run_eocr
-results = reader.readtext(img_ocr, canvas_size=1280, batch_size=1)
 
 # Criado uma única vez, no topo do arquivo, fora de qualquer função.
 # Se os modelos não existirem na pasta, o EasyOCR baixa automaticamente.
@@ -50,7 +49,12 @@ def run_eocr(image_path):
         img_ocr = img
 
     # identifica os textos na imagem (já redimensionada)
-    results = reader.readtext(img_ocr)
+    # canvas_size e batch_size menores reduzem o pico de memória
+    results = reader.readtext(
+        img_ocr,
+        canvas_size=MAX_LADO_OCR,
+        batch_size=1
+    )
 
     # cria uma lista para guardar as informações dos textos
     text_regions = []
