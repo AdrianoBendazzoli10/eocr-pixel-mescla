@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
+from fastapi.middleware.cors import CORSMiddleware
 
 import os
 import uuid
@@ -21,7 +22,6 @@ from pdf_report import gerar_relatorio_pdf
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(valid_bp)
-
 
 # =========================================================
 # CONVERSÃO PARA JSON

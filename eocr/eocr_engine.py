@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+
 import cv2
 import easyocr
 import numpy as np
@@ -10,25 +11,13 @@ MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
 # Garante que a pasta de modelos existe no servidor
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-MODELOS_OBRIGATORIOS = [
-    MODEL_DIR / "craft_mlt_25k.pth",
-    MODEL_DIR / "latin_g2.pth",
-]
+# Maior lado da imagem enviada ao EasyOCR (reduz muito o uso de memória)
+MAX_LADO_OCR = 1600
 
-# No ambiente de nuvem (Railway), permitimos que o EasyOCR baixe os modelos se faltarem
-faltando = [
-    str(caminho.name)
-    for caminho in MODELOS_OBRIGATORIOS
-    if not caminho.exists()
-]
-
-if faltando and os.environ.get("RAILWAY_ENVIRONMENT") is None:
-    # Localmente (no seu PC), ainda avisa para rodar o setup se quiser
-    pass
-
-# Inicializa o EasyOCR permitindo download se necessário na nuvem
+# Criado uma única vez, no topo do arquivo, fora de qualquer função.
+# Se os modelos não existirem na pasta, o EasyOCR baixa automaticamente.
 reader = easyocr.Reader(
-    ["pt", "en"],
+    ["pt"],
     gpu=False,
     model_storage_directory=str(MODEL_DIR),
     download_enabled=True
@@ -36,9 +25,27 @@ reader = easyocr.Reader(
 
 
 def run_eocr(image_path):
+    # lê a imagem do disco
+    img = cv2.imread(str(image_path))
 
-    # lê a imagem e identifica os textos dela
-    results = reader.readtext(image_path)
+    if img is None:
+        raise ValueError(f"Não foi possível ler a imagem: {image_path}")
+
+    # reduz a imagem se for muito grande, para não estourar a memória
+    altura, largura = img.shape[:2]
+    escala = min(1.0, MAX_LADO_OCR / max(altura, largura))
+
+    if escala < 1.0:
+        img_ocr = cv2.resize(
+            img,
+            (int(largura * escala), int(altura * escala)),
+            interpolation=cv2.INTER_AREA
+        )
+    else:
+        img_ocr = img
+
+    # identifica os textos na imagem (já redimensionada)
+    results = reader.readtext(img_ocr)
 
     # cria uma lista para guardar as informações dos textos
     text_regions = []
@@ -46,8 +53,9 @@ def run_eocr(image_path):
     # passa por cada texto
     for (bbox, text, prob) in results:
 
-        # transforma os pontos da região do texto em um formato que o opencv entende
-        pts = np.array(bbox, dtype=np.int32)
+        # devolve as coordenadas para o tamanho ORIGINAL da imagem,
+        # assim o resto do sistema continua usando as mesmas posições
+        pts = (np.array(bbox, dtype=np.float32) / escala).astype(np.int32)
 
         # encontra um retângulo simples que envolve o texto
         x, y, w, h = cv2.boundingRect(pts)

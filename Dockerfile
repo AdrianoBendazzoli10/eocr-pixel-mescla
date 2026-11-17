@@ -33,4 +33,4 @@ ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
 # 1 worker para não duplicar o EasyOCR na memória RAM
-CMD gunicorn app:app --bind 0.0.0.0:${PORT} --workers 1 --threads 2 --timeout 300
+CMD gunicorn app:app --workers 1 --threads 2 --timeout 300 --bind 0.0.0.0:$PORT
