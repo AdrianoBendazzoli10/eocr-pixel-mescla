@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 import os
+import gc
 import uuid
 import math
+import threading
 
 from pixels.analyzer import analyze_continuity
 from pixels.preprocessing import preprocess_image
@@ -17,10 +19,68 @@ from visualizer.visualizer import render_report
 from valid_api import valid_bp
 from pdf_report import gerar_relatorio_pdf
 
+import cv2
+
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(valid_bp)
+
+# Só uma análise por vez: evita estourar a memória do servidor
+# e evita que duas análises sobrescrevam as imagens de results/
+_analise_lock = threading.Lock()
+
+
+# =========================================================
+# FUNÇÕES AUXILIARES DE UPLOAD
+# =========================================================
+
+def salvar_upload(arquivo_enviado, caminho):
+    """
+    Salva o arquivo enviado em 'caminho' (PNG).
+    Se for PDF, converte a primeira página em imagem.
+    """
+
+    nome = (arquivo_enviado.filename or "").lower()
+
+    if nome.endswith(".pdf"):
+        import fitz  # PyMuPDF
+
+        dados = arquivo_enviado.read()
+
+        with fitz.open(stream=dados, filetype="pdf") as doc:
+            if doc.page_count == 0:
+                raise ValueError("O PDF enviado não possui páginas.")
+
+            pagina = doc[0]
+            pix = pagina.get_pixmap(dpi=150)
+            pix.save(caminho)
+    else:
+        arquivo_enviado.save(caminho)
+
+
+def reduzir_imagem_upload(caminho, max_lado=1600):
+    """
+    Reduz a imagem se o maior lado passar de max_lado,
+    para economizar memória nas análises.
+    """
+
+    img = cv2.imread(str(caminho))
+
+    if img is None:
+        return
+
+    h, w = img.shape[:2]
+    escala = max_lado / max(h, w)
+
+    if escala < 1:
+        img = cv2.resize(
+            img,
+            (int(w * escala), int(h * escala)),
+            interpolation=cv2.INTER_AREA
+        )
+        cv2.imwrite(str(caminho), img)
+
 
 # =========================================================
 # CONVERSÃO PARA JSON
@@ -130,19 +190,21 @@ def analisar():
         exist_ok=True
     )
 
-    # -----------------------------------------------------
-    # SALVA A IMAGEM
-    # -----------------------------------------------------
-
-    imagem.save(caminho)
-
     try:
 
         # =================================================
-        # EXECUTA A ANÁLISE COMPLETA
+        # SALVA O ARQUIVO (CONVERTE PDF) E REDUZ O TAMANHO
         # =================================================
 
-        resultado = analisar_documento(caminho)
+        salvar_upload(imagem, caminho)
+        reduzir_imagem_upload(caminho)
+
+        # =================================================
+        # EXECUTA A ANÁLISE COMPLETA (UMA POR VEZ)
+        # =================================================
+
+        with _analise_lock:
+            resultado = analisar_documento(caminho)
 
         # =================================================
         # EXIBE RESULTADOS NO TERMINAL
@@ -224,6 +286,8 @@ def analisar():
 
     except Exception as erro:
 
+        app.logger.exception("Erro na análise")
+
         print("\n================================")
         print("ERRO NA ANÁLISE")
         print("================================")
@@ -237,11 +301,13 @@ def analisar():
     finally:
 
         # -------------------------------------------------
-        # REMOVE A IMAGEM TEMPORÁRIA
+        # REMOVE A IMAGEM TEMPORÁRIA E LIBERA MEMÓRIA
         # -------------------------------------------------
 
         if os.path.exists(caminho):
             os.remove(caminho)
+
+        gc.collect()
 
 
 # =========================================================
@@ -271,6 +337,10 @@ def analisar_documento(caminho):
         caminho
     )
 
+    # a imagem colorida não é mais usada: libera memória
+    del image
+    gc.collect()
+
 
     # =====================================================
     # 3. EOCR
@@ -285,6 +355,8 @@ def analisar_documento(caminho):
     geo_results = analyze_text_geometry(
         text_regions
     )
+
+    gc.collect()
 
 
     # =====================================================

@@ -12,7 +12,7 @@ MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Maior lado da imagem enviada ao EasyOCR (reduz muito o uso de memória)
-MAX_LADO_OCR = 1600
+MAX_LADO_OCR = 1200
 
 # Criado uma única vez, no topo do arquivo, fora de qualquer função.
 # Se os modelos não existirem na pasta, o EasyOCR baixa automaticamente.
