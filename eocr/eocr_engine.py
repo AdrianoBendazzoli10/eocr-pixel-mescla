@@ -4,6 +4,8 @@ import os
 import cv2
 import easyocr
 import numpy as np
+import torch
+torch.set_num_threads(1)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
@@ -12,7 +14,10 @@ MODEL_DIR = PROJECT_ROOT / "models" / "easyocr"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Maior lado da imagem enviada ao EasyOCR (reduz muito o uso de memória)
-MAX_LADO_OCR = 1200
+MAX_LADO_OCR = 1280
+
+# dentro de run_eocr
+results = reader.readtext(img_ocr, canvas_size=1280, batch_size=1)
 
 # Criado uma única vez, no topo do arquivo, fora de qualquer função.
 # Se os modelos não existirem na pasta, o EasyOCR baixa automaticamente.
